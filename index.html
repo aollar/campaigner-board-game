@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>The Campaigner - Playable Board Mockup</title>
+  <style>
+    :root {
+      --gold: #ffc83d;
+      --orange: #ff8b1f;
+      --pink: #ff4fa3;
+      --blue: #37b8ff;
+      --green: #62e266;
+      --purple: #9b55ff;
+      --paper: #fff2cf;
+      --ink: #160f0c;
+      --panel: rgba(13, 10, 12, .93);
+      --stroke: #0b0706;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(255, 200, 61, .15), transparent 30%),
+        linear-gradient(135deg, #071420, #251024 52%, #0a1718);
+      color: var(--paper);
+      font-family: "Trebuchet MS", Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    button {
+      border: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .stage-shell {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+
+    .stage {
+      position: relative;
+      width: min(100vw - 20px, calc((100vh - 20px) * 1672 / 941));
+      aspect-ratio: 1672 / 941;
+      background-image: url("assets/campaigner-board.png");
+      background-size: cover;
+      background-position: center;
+      border: 3px solid #050505;
+      box-shadow:
+        0 18px 70px rgba(0, 0, 0, .62),
+        inset 0 0 0 2px rgba(255, 200, 61, .72);
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 48% 54%, transparent 0 22%, rgba(0,0,0,.08) 64%, rgba(0,0,0,.26) 100%),
+        linear-gradient(180deg, rgba(255,255,255,.04), transparent 22%, transparent 72%, rgba(0,0,0,.08));
+      z-index: 1;
+    }
+
+    .hotspot {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: var(--w);
+      height: var(--h);
+      border-radius: 16px;
+      background: rgba(255, 200, 61, .01);
+      z-index: 8;
+      outline: 0;
+    }
+
+    .hotspot::before {
+      content: "";
+      position: absolute;
+      inset: -5px;
+      border: 3px solid rgba(255, 200, 61, 0);
+      border-radius: 18px;
+      box-shadow: 0 0 0 rgba(255, 200, 61, 0);
+      transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+
+    .hotspot:hover::before,
+    .hotspot:focus-visible::before,
+    .hotspot.active::before {
+      border-color: rgba(255, 200, 61, .96);
+      box-shadow: 0 0 24px rgba(255, 200, 61, .8);
+      background: rgba(255, 200, 61, .1);
+    }
+
+    .hotspot::after {
+      content: attr(aria-label);
+      position: absolute;
+      left: 50%;
+      top: -22px;
+      transform: translate(-50%, -100%) rotate(-2deg);
+      min-width: max-content;
+      max-width: 220px;
+      padding: 7px 10px;
+      border: 3px solid var(--stroke);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink);
+      font-weight: 900;
+      font-size: clamp(11px, 1.05vw, 15px);
+      line-height: 1;
+      text-transform: uppercase;
+      box-shadow: 5px 6px 0 rgba(0,0,0,.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .12s ease, transform .12s ease;
+    }
+
+    .hotspot:hover::after,
+    .hotspot:focus-visible::after {
+      opacity: 1;
+      transform: translate(-50%, -110%) rotate(-2deg);
+    }
+
+    .avatar {
+      position: absolute;
+      left: 43.5%;
+      top: 68%;
+      width: 7.8%;
+      aspect-ratio: 180 / 270;
+      transform: translate(-50%, -92%);
+      z-index: 10;
+      pointer-events: none;
+      transition:
+        left .95s cubic-bezier(.22, .9, .24, 1),
+        top .95s cubic-bezier(.22, .9, .24, 1),
+        width .25s ease,
+        filter .25s ease;
+      filter: drop-shadow(0 2.2vw .15vw rgba(0, 0, 0, .42));
+    }
+
+    .avatar.moving {
+      filter: drop-shadow(0 2.6vw .15vw rgba(0, 0, 0, .46)) saturate(1.08);
+    }
+
+    .avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    #avatarFlip {
+      width: 100%;
+      height: 100%;
+      transition: transform 0.18s ease;
+    }
+
+    #avatarFlip.face-left {
+      transform: scaleX(-1);
+    }
+
+    #avatarAnim {
+      width: 100%;
+      height: 100%;
+      transform-origin: center bottom;
+    }
+
+    #avatarAnim.idle {
+      animation: idleFloat 2.8s ease-in-out infinite;
+    }
+
+    #avatarAnim.walking {
+      animation: walkCycle .44s ease-in-out infinite;
+    }
+
+    @keyframes idleFloat {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      50%       { transform: translateY(-0.35vw) rotate(0.6deg); }
+    }
+
+    @keyframes walkCycle {
+      0%   { transform: translateY(0)       rotate(0deg); }
+      25%  { transform: translateY(-0.55vw) rotate(-2.4deg); }
+      50%  { transform: translateY(0)       rotate(0deg); }
+      75%  { transform: translateY(-0.55vw) rotate(2.4deg); }
+      100% { transform: translateY(0)       rotate(0deg); }
+    }
+
+    .route-dot {
+      position: absolute;
+      left: 43.5%;
+      top: 68%;
+      width: 2.6%;
+      aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle, #fff9b8 0 26%, var(--gold) 27% 55%, #14100c 56%);
+      box-shadow: 0 0 20px rgba(255, 200, 61, .95);
+      z-index: 9;
+      pointer-events: none;
+      transition: left .95s cubic-bezier(.22, .9, .24, 1), top .95s cubic-bezier(.22, .9, .24, 1), opacity .2s ease;
+    }
+
+    .travel-label {
+      position: absolute;
+      left: 43.5%;
+      top: 56%;
+      z-index: 12;
+      transform: translate(-50%, -100%) rotate(-2deg);
+      padding: .48vw .72vw;
+      min-width: max-content;
+      border: .18vw solid var(--stroke);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: clamp(11px, .92vw, 16px);
+      font-weight: 900;
+      box-shadow: .35vw .42vw 0 rgba(0, 0, 0, .35);
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        left .95s cubic-bezier(.22, .9, .24, 1),
+        top .95s cubic-bezier(.22, .9, .24, 1),
+        opacity .16s ease;
+    }
+
+    .travel-label.show { opacity: 1; }
+
+    .live-strip {
+      position: absolute;
+      left: 21.2%;
+      bottom: 1.3%;
+      width: 42.2%;
+      min-height: 7.2%;
+      z-index: 15;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: .55vw;
+      align-items: center;
+      padding: .6vw .75vw;
+      background: rgba(7, 6, 7, .82);
+      border: .24vw solid #050505;
+      border-radius: .45vw;
+      box-shadow: inset 0 0 0 .12vw rgba(255, 200, 61, .75);
+    }
+
+    .metric {
+      text-align: center;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #fff;
+      line-height: 1;
+      font-size: clamp(9px, .8vw, 13px);
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: .18vw;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: clamp(17px, 1.6vw, 28px);
+      color: var(--gold);
+      text-shadow: .12vw .12vw 0 #000;
+    }
+
+    .metric.money strong { color: var(--green); }
+    .metric.energy strong { color: var(--gold); }
+    .metric.social strong { color: var(--pink); }
+    .metric.ambition strong { color: var(--blue); }
+    .metric.chaos strong { color: var(--purple); }
+
+    .drawer {
+      position: absolute;
+      right: 2.1%;
+      bottom: 15.6%;
+      width: 24.8%;
+      max-height: 48%;
+      z-index: 22;
+      padding: 1vw;
+      background: var(--panel);
+      border: .28vw solid #050505;
+      border-radius: .7vw;
+      box-shadow:
+        inset 0 0 0 .12vw rgba(255, 200, 61, .75),
+        .7vw .9vw 0 rgba(0,0,0,.4);
+      transform: translateY(1vw);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .drawer.open {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .drawer h2 {
+      margin: 0;
+      font-family: Impact, "Arial Black", sans-serif;
+      color: var(--gold);
+      text-transform: uppercase;
+      line-height: .95;
+      font-size: clamp(21px, 2vw, 34px);
+      text-shadow: .14vw .14vw 0 #000;
+    }
+
+    .drawer p {
+      margin: .55vw 0 .8vw;
+      color: var(--paper);
+      font-weight: 800;
+      font-size: clamp(12px, .9vw, 15px);
+      line-height: 1.25;
+    }
+
+    .actions {
+      display: grid;
+      gap: .48vw;
+    }
+
+    .action {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: .7vw;
+      padding: .58vw .65vw;
+      background: var(--paper);
+      color: var(--ink);
+      border: .18vw solid #050505;
+      border-radius: .45vw;
+      text-align: left;
+      box-shadow: 0 .25vw 0 rgba(0,0,0,.42);
+      transition: transform .12s ease, background .12s ease;
+    }
+
+    .action:hover {
+      transform: translateY(-.16vw);
+      background: #ffe19b;
+    }
+
+    .action b {
+      display: block;
+      font-size: clamp(12px, .9vw, 16px);
+      line-height: 1.05;
+    }
+
+    .action span {
+      display: block;
+      margin-top: .14vw;
+      color: #6d3915;
+      font-weight: 900;
+      font-size: clamp(10px, .75vw, 13px);
+      line-height: 1.08;
+    }
+
+    .cost {
+      padding: .34vw .46vw;
+      border-radius: .35vw;
+      color: #fff;
+      background: #15100d;
+      white-space: nowrap;
+      font-size: clamp(10px, .75vw, 13px);
+      font-weight: 900;
+    }
+
+    .toast-stack {
+      position: absolute;
+      left: 20.2%;
+      top: 2.3%;
+      z-index: 25;
+      display: grid;
+      gap: .55vw;
+      pointer-events: none;
+    }
+
+    .toast {
+      max-width: 27vw;
+      padding: .62vw .8vw;
+      border: .18vw solid var(--stroke);
+      border-radius: 999px;
+      background: var(--paper);
+      color: var(--ink);
+      font-size: clamp(11px, .9vw, 16px);
+      font-weight: 900;
+      box-shadow: .45vw .5vw 0 rgba(0,0,0,.38);
+      transform: rotate(-2deg);
+      animation: toastLife 3s ease forwards;
+    }
+
+    @keyframes toastLife {
+      0% { opacity: 0; transform: translateY(-.7vw) rotate(-2deg); }
+      10%, 83% { opacity: 1; transform: translateY(0) rotate(-2deg); }
+      100% { opacity: 0; transform: translateY(-.7vw) rotate(-2deg); }
+    }
+
+    .menu-pop {
+      position: absolute;
+      right: 3.2%;
+      bottom: 4.6%;
+      z-index: 24;
+      width: 22%;
+      padding: 1vw;
+      background: rgba(13, 10, 12, .96);
+      border: .25vw solid #050505;
+      border-radius: .7vw;
+      box-shadow: inset 0 0 0 .12vw rgba(255, 200, 61, .72), .7vw .85vw 0 rgba(0,0,0,.42);
+      display: none;
+    }
+
+    .menu-pop.open { display: block; }
+
+    .menu-pop h2 {
+      margin: 0 0 .55vw;
+      color: var(--gold);
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: clamp(22px, 2vw, 32px);
+      text-transform: uppercase;
+    }
+
+    .menu-pop button {
+      width: 100%;
+      margin-top: .45vw;
+      padding: .7vw;
+      border: .18vw solid #050505;
+      border-radius: .45vw;
+      background: linear-gradient(135deg, #1c93d8, #17446c);
+      color: white;
+      font-weight: 900;
+      text-transform: uppercase;
+      box-shadow: 0 .28vw 0 rgba(0,0,0,.42);
+    }
+
+    .invisible-control {
+      position: absolute;
+      z-index: 18;
+      background: rgba(255, 255, 255, .01);
+      border-radius: .5vw;
+    }
+
+    .invisible-control:hover,
+    .invisible-control:focus-visible {
+      outline: .2vw solid rgba(255, 200, 61, .88);
+      outline-offset: .18vw;
+    }
+
+    .stats-control {
+      left: 69.6%;
+      bottom: 1.4%;
+      width: 13.8%;
+      height: 6.8%;
+    }
+
+    .menu-control {
+      left: 84.4%;
+      bottom: 1.4%;
+      width: 13.9%;
+      height: 6.8%;
+    }
+
+    .end-turn {
+      left: 1.5%;
+      bottom: 1.7%;
+      width: 16.5%;
+      height: 13.4%;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      place-items: center;
+      background: rgba(0,0,0,.68);
+    }
+
+    .modal.open { display: grid; }
+
+    .modal-card {
+      width: min(760px, 88vw);
+      padding: 24px;
+      border: 5px solid #050505;
+      border-radius: 12px;
+      background: var(--paper);
+      color: var(--ink);
+      box-shadow: 14px 18px 0 rgba(0,0,0,.45);
+    }
+
+    .modal-card h2 {
+      margin: 0 0 12px;
+      color: #d95d16;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: 42px;
+      line-height: 1;
+      text-transform: uppercase;
+    }
+
+    .modal-card p {
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    .modal-stat {
+      padding: 12px;
+      border: 3px solid #050505;
+      border-radius: 8px;
+      background: #15100d;
+      color: var(--paper);
+      text-align: center;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .modal-stat strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--gold);
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: 30px;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .modal-actions button {
+      padding: 12px 16px;
+      border: 4px solid #050505;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #148ed9, #184978);
+      color: white;
+      font-family: Impact, "Arial Black", sans-serif;
+      font-size: 21px;
+      text-transform: uppercase;
+    }
+
+    .modal-actions .secondary {
+      background: linear-gradient(135deg, #a735c7, #552071);
+    }
+
+    @media (max-aspect-ratio: 1/1) {
+      html, body { overflow: auto; }
+      .stage-shell {
+        min-width: 980px;
+        align-items: start;
+      }
+      .stage {
+        width: 960px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage-shell">
+    <section class="stage" id="stage" aria-label="The Campaigner playable board">
+      <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+      <div class="route-dot" id="routeDot"></div>
+      <div class="avatar" id="avatar" aria-hidden="true">
+        <div id="avatarFlip">
+          <div id="avatarAnim">
+            <img src="assets/campaigner-token.png" alt="" />
+          </div>
+        </div>
+      </div>
+      <div class="travel-label" id="travelLabel">Click a building</div>
+      <div class="live-strip" aria-label="Live player state">
+        <div class="metric money">Money<strong id="moneyValue">$428</strong></div>
+        <div class="metric energy">Energy<strong id="energyValue">7</strong></div>
+        <div class="metric social">Social<strong id="socialValue">8</strong></div>
+        <div class="metric ambition">Ambition<strong id="ambitionValue">6</strong></div>
+        <div class="metric chaos">Chaos<strong id="chaosValue">7</strong></div>
+      </div>
+
+      <button class="invisible-control end-turn" id="endTurnButton" aria-label="End turn"></button>
+      <button class="invisible-control stats-control" id="statsButton" aria-label="View stats"></button>
+      <button class="invisible-control menu-control" id="menuButton" aria-label="Open menu"></button>
+
+      <section class="drawer" id="drawer" aria-live="polite">
+        <h2 id="drawerTitle">Building</h2>
+        <p id="drawerText">Choose an action.</p>
+        <div class="actions" id="actions"></div>
+      </section>
+
+      <section class="menu-pop" id="menuPop">
+        <h2>Menu</h2>
+        <button id="resetButton">Restart Demo</button>
+        <button id="hideMenuButton">Close</button>
+      </section>
+    </section>
+  </main>
+
+  <section class="modal" id="statsModal" aria-modal="true" role="dialog">
+    <div class="modal-card">
+      <h2>Campaigner Status</h2>
+      <p>Move around the board by clicking buildings. Travel and actions spend hours. The demo objective is to reach Main Character Mansion with at least $250, 8 Energy, and 8 Social.</p>
+      <div class="modal-grid" id="modalGrid"></div>
+      <div class="modal-actions">
+        <button id="closeStatsButton">Back to Board</button>
+        <button class="secondary" id="modalEndTurnButton">End Turn</button>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const initialState = {
+      money: 428,
+      hours: 10,
+      turn: 7,
+      maxTurns: 20,
+      location: "center",
+      objectiveDone: false,
+      stats: { energy: 7, social: 8, ambition: 6, chaos: 7 }
+    };
+
+    const state = structuredClone(initialState);
+
+    const buildings = [
+      {
+        id: "academy",
+        name: "Overthinking Academy",
+        x: 31.2,
+        y: 17.3,
+        token: [36.0, 32.0],
+        size: [12.8, 13.8],
+        text: "Turn spirals into strategy, quizzes, and a suspicious number of diagrams.",
+        actions: [
+          ["Take the quiz again", "Ambition +2, Chaos +1", 2, { ambition: 2, chaos: 1 }],
+          ["Build a plan wall", "Ambition +3, Energy -1", 3, { ambition: 3, energy: -1 }],
+          ["Ask one useful question", "Social +1, Ambition +1", 1, { social: 1, ambition: 1 }]
+        ]
+      },
+      {
+        id: "club",
+        name: "Bad Decisions Club",
+        x: 45.3,
+        y: 17.1,
+        token: [47.6, 31.5],
+        size: [12.6, 13.4],
+        text: "Loud music, heroic mistakes, and the kind of story that grows in the retelling.",
+        actions: [
+          ["Say yes too fast", "Chaos +3, Energy -1", 2, { chaos: 3, energy: -1 }],
+          ["Network in line", "Social +2, Chaos +1", 2, { social: 2, chaos: 1 }],
+          ["Leave before midnight", "Energy +1", 1, { energy: 1 }]
+        ]
+      },
+      {
+        id: "mansion",
+        name: "Main Character Mansion",
+        x: 61.0,
+        y: 18.0,
+        token: [61.7, 34.6],
+        size: [15.2, 13.6],
+        text: "The objective. Make a dramatic entrance without going broke or spiraling.",
+        actions: [
+          ["Make the grand entrance", "Check objective", 2, { objective: true }],
+          ["Practice being seen", "Social +1, Energy +1", 1, { social: 1, energy: 1 }],
+          ["Host a tiny salon", "Social +2, Money -40", 2, { social: 2, money: -40 }]
+        ]
+      },
+      {
+        id: "mall",
+        name: "Impulse Pass Mall",
+        x: 74.4,
+        y: 29.7,
+        token: [72.1, 42.0],
+        size: [13.2, 18.2],
+        text: "Buy now, cry later. The escalator is somehow judging you.",
+        actions: [
+          ["Buy a sparkle kit", "Social +2, Money -55", 1, { social: 2, money: -55 }],
+          ["Buy productivity stickers", "Ambition +2, Money -45", 1, { ambition: 2, money: -45 }],
+          ["Window shop dramatically", "Chaos +1", 1, { chaos: 1 }]
+        ]
+      },
+      {
+        id: "bank",
+        name: "Student Debt Bank",
+        x: 63.0,
+        y: 43.3,
+        token: [61.6, 52.6],
+        size: [12.2, 14.0],
+        text: "Financial advice delivered by a haunted calculator.",
+        actions: [
+          ["Freelance sprint", "Money +85, Energy -2", 3, { money: 85, energy: -2 }],
+          ["Negotiate fees", "Money +45, Ambition +1", 2, { money: 45, ambition: 1 }],
+          ["Pay a bill early", "Money -35, Chaos -2", 1, { money: -35, chaos: -2 }]
+        ]
+      },
+      {
+        id: "pets",
+        name: "Paw and Order Pet Store",
+        x: 76.6,
+        y: 57.6,
+        token: [70.5, 62.6],
+        size: [14.2, 16.8],
+        text: "Therapy animals, tiny accessories, and emotional damages.",
+        actions: [
+          ["Pet every animal", "Energy +3, Social +1", 2, { energy: 3, social: 1 }],
+          ["Adopt chaos in a scarf", "Chaos +2, Money -60", 1, { chaos: 2, money: -60 }],
+          ["Volunteer shift", "Social +2, Money +20", 2, { social: 2, money: 20 }]
+        ]
+      },
+      {
+        id: "exchange",
+        name: "Corporate Soul Exchange",
+        x: 62.2,
+        y: 68.2,
+        token: [60.4, 68.7],
+        size: [11.2, 14.0],
+        text: "Your soul? Their KPI. A clean trade if you squint.",
+        actions: [
+          ["Accept a weird contract", "Money +120, Chaos +2", 4, { money: 120, chaos: 2 }],
+          ["Optimize the vibe", "Ambition +2, Social -1", 2, { ambition: 2, social: -1 }],
+          ["Quiet quit for lunch", "Energy +2", 1, { energy: 2 }]
+        ]
+      },
+      {
+        id: "gym",
+        name: "Identity Crisis Gym",
+        x: 73.5,
+        y: 80.2,
+        token: [67.0, 75.6],
+        size: [13.6, 13.4],
+        text: "New you? Maybe. Old you still has the locker key.",
+        actions: [
+          ["Do one heroic set", "Energy +2, Ambition +1", 2, { energy: 2, ambition: 1 }],
+          ["Compare yourself badly", "Ambition -1, Chaos +2", 1, { ambition: -1, chaos: 2 }],
+          ["Stretch and forgive", "Energy +1, Chaos -1", 1, { energy: 1, chaos: -1 }]
+        ]
+      },
+      {
+        id: "apartments",
+        name: "Basic Apartments",
+        x: 50.5,
+        y: 78.1,
+        token: [50.0, 70.3],
+        size: [12.2, 14.5],
+        text: "Dreams on hold. Mold included. Cozy enough to recover.",
+        actions: [
+          ["Take a real nap", "Energy +3, Chaos -1", 2, { energy: 3, chaos: -1 }],
+          ["Make a list then ignore it", "Ambition +1, Chaos +1", 1, { ambition: 1, chaos: 1 }],
+          ["Cook something cheap", "Money +15, Energy +1", 1, { money: 15, energy: 1 }]
+        ]
+      },
+      {
+        id: "burger",
+        name: "Regret Burger",
+        x: 32.3,
+        y: 79.0,
+        token: [38.7, 68.2],
+        size: [12.4, 15.5],
+        text: "Cheap, fast, regret. Extra sauce of shame.",
+        actions: [
+          ["Order the usual mistake", "Energy +2, Money -18, Chaos +1", 1, { energy: 2, money: -18, chaos: 1 }],
+          ["Work the lunch rush", "Money +55, Energy -1", 2, { money: 55, energy: -1 }],
+          ["Start a booth debate", "Social +1, Chaos +2", 1, { social: 1, chaos: 2 }]
+        ]
+      },
+      {
+        id: "temple",
+        name: "Inner Peace Maybe Temple",
+        x: 27.0,
+        y: 56.1,
+        token: [33.6, 54.8],
+        size: [12.0, 13.0],
+        text: "Namaste? Nah, mate. But the fountain is trying its best.",
+        actions: [
+          ["Try meditating badly", "Chaos -2, Energy +1", 1, { chaos: -2, energy: 1 }],
+          ["Ask for guidance", "Ambition +1, Social +1", 2, { ambition: 1, social: 1 }],
+          ["Light a tiny candle", "Chaos -1", 1, { chaos: -1 }]
+        ]
+      },
+      {
+        id: "market",
+        name: "Friendship Market",
+        x: 23.8,
+        y: 34.7,
+        token: [32.7, 43.4],
+        size: [12.8, 13.8],
+        text: "Support local legends. Besties sold separately.",
+        actions: [
+          ["Buy snacks for everyone", "Social +3, Money -35", 2, { social: 3, money: -35 }],
+          ["Help a vendor", "Social +2, Money +25", 2, { social: 2, money: 25 }],
+          ["Collect local rumors", "Chaos +1, Ambition +1", 1, { chaos: 1, ambition: 1 }]
+        ]
+      }
+    ];
+
+    const events = [
+      ["You turned brunch into a side quest.", { chaos: 2 }],
+      ["A stranger loved your idea and asked for a pitch deck.", { ambition: 1, energy: -1 }],
+      ["Your group chat became a summit with snacks.", { social: 2 }],
+      ["You reorganized life around one vibe and a coffee.", { energy: 1, chaos: 1 }],
+      ["You almost bought a tiny hat for no reason.", { money: -25, social: 1 }]
+    ];
+
+    const stage = document.getElementById("stage");
+    const avatar = document.getElementById("avatar");
+    const avatarFlip = document.getElementById("avatarFlip");
+    const avatarAnim = document.getElementById("avatarAnim");
+    const routeDot = document.getElementById("routeDot");
+    const travelLabel = document.getElementById("travelLabel");
+    const drawer = document.getElementById("drawer");
+    const actions = document.getElementById("actions");
+    const menuPop = document.getElementById("menuPop");
+    let currentTokenPos = [43.5, 68];
+
+    function clamp(value) {
+      return Math.max(0, Math.min(10, value));
+    }
+
+    function createHotspots() {
+      buildings.forEach((building) => {
+        const button = document.createElement("button");
+        button.className = "hotspot";
+        button.dataset.id = building.id;
+        button.setAttribute("aria-label", building.name);
+        button.style.left = `${building.x}%`;
+        button.style.top = `${building.y}%`;
+        button.style.setProperty("--w", `${building.size[0]}%`);
+        button.style.setProperty("--h", `${building.size[1]}%`);
+        button.addEventListener("click", () => travelTo(building));
+        stage.appendChild(button);
+      });
+    }
+
+    function setTokenPosition(x, y) {
+      avatar.style.left = `${x}%`;
+      avatar.style.top = `${y}%`;
+      routeDot.style.left = `${x}%`;
+      routeDot.style.top = `${y}%`;
+      travelLabel.style.left = `${x}%`;
+      travelLabel.style.top = `${Math.max(9, y - 12)}%`;
+      currentTokenPos = [x, y];
+    }
+
+    function render() {
+      document.getElementById("moneyValue").textContent = `$${state.money}`;
+      document.getElementById("energyValue").textContent = state.stats.energy;
+      document.getElementById("socialValue").textContent = state.stats.social;
+      document.getElementById("ambitionValue").textContent = state.stats.ambition;
+      document.getElementById("chaosValue").textContent = state.stats.chaos;
+      renderModalStats();
+    }
+
+    function renderModalStats() {
+      const grid = document.getElementById("modalGrid");
+      grid.innerHTML = `
+        <div class="modal-stat">Money<strong>$${state.money}</strong></div>
+        <div class="modal-stat">Hours<strong>${state.hours}</strong></div>
+        <div class="modal-stat">Energy<strong>${state.stats.energy}/10</strong></div>
+        <div class="modal-stat">Social<strong>${state.stats.social}/10</strong></div>
+        <div class="modal-stat">Chaos<strong>${state.stats.chaos}/10</strong></div>
+      `;
+    }
+
+    function toast(message) {
+      const stack = document.getElementById("toastStack");
+      const item = document.createElement("div");
+      item.className = "toast";
+      item.textContent = message;
+      stack.appendChild(item);
+      window.setTimeout(() => item.remove(), 3000);
+    }
+
+    function travelTo(building) {
+      if (avatar.classList.contains("moving")) return;
+      const current = buildings.find((b) => b.id === state.location);
+      const origin = current ? current.token : [43.5, 68];
+      const distance = Math.abs(origin[0] - building.token[0]) + Math.abs(origin[1] - building.token[1]);
+      const cost = Math.max(1, Math.ceil(distance / 18));
+      if (state.hours < cost) {
+        toast("Not enough hours left. Click the clock to end your turn.");
+        return;
+      }
+
+      if (building.token[0] < currentTokenPos[0]) {
+        avatarFlip.classList.add("face-left");
+      } else {
+        avatarFlip.classList.remove("face-left");
+      }
+
+      state.hours -= cost;
+      drawer.classList.remove("open");
+      menuPop.classList.remove("open");
+      document.querySelectorAll(".hotspot").forEach((el) => el.classList.remove("active"));
+      document.querySelector(`[data-id="${building.id}"]`).classList.add("active");
+      travelLabel.textContent = `To ${building.name}: ${cost}h`;
+      travelLabel.classList.add("show");
+      avatar.classList.add("moving");
+      avatarAnim.classList.remove("idle");
+      avatarAnim.classList.add("walking");
+      setTokenPosition(building.token[0], building.token[1]);
+      render();
+
+      window.setTimeout(() => {
+        avatar.classList.remove("moving");
+        avatarAnim.classList.remove("walking");
+        avatarAnim.classList.add("idle");
+        state.location = building.id;
+        travelLabel.textContent = `${state.hours}h left`;
+        openDrawer(building);
+        toast(`Arrived at ${building.name}.`);
+      }, 980);
+    }
+
+    function openDrawer(building) {
+      document.getElementById("drawerTitle").textContent = building.name;
+      document.getElementById("drawerText").textContent = building.text;
+      actions.innerHTML = "";
+      building.actions.forEach(([label, note, cost, effect]) => {
+        const button = document.createElement("button");
+        button.className = "action";
+        button.innerHTML = `<div><b>${label}</b><span>${note}</span></div><div class="cost">${cost}h</div>`;
+        button.addEventListener("click", () => takeAction(label, cost, effect));
+        actions.appendChild(button);
+      });
+      drawer.classList.add("open");
+    }
+
+    function takeAction(label, cost, effect) {
+      if (state.hours < cost) {
+        toast("Not enough hours. End the turn first.");
+        return;
+      }
+      state.hours -= cost;
+      applyEffect(effect);
+      if (!effect.objective && Math.random() < .35) drawEvent();
+      render();
+      travelLabel.textContent = `${state.hours}h left`;
+      toast(`${label}.`);
+      if (state.hours <= 0) window.setTimeout(endTurn, 700);
+    }
+
+    function applyEffect(effect) {
+      Object.entries(effect).forEach(([key, amount]) => {
+        if (key === "money") state.money = Math.max(0, state.money + amount);
+        else if (key === "objective") checkObjective();
+        else state.stats[key] = clamp(state.stats[key] + amount);
+      });
+    }
+
+    function drawEvent() {
+      const [message, effect] = events[Math.floor(Math.random() * events.length)];
+      applyEffect(effect);
+      toast(`Life event: ${message}`);
+    }
+
+    function checkObjective() {
+      const complete = state.money >= 250 && state.stats.energy >= 8 && state.stats.social >= 8;
+      if (complete) {
+        state.objectiveDone = true;
+        state.money += 50;
+        toast("Objective complete. Main character entrance secured.");
+      } else {
+        toast("Objective needs $250, 8 Energy, and 8 Social.");
+      }
+    }
+
+    function endTurn() {
+      state.turn = state.turn >= state.maxTurns ? 1 : state.turn + 1;
+      state.hours = 10;
+      drawer.classList.remove("open");
+      menuPop.classList.remove("open");
+      if (state.stats.chaos >= 9) {
+        state.stats.energy = clamp(state.stats.energy - 1);
+        toast("New turn. Chaos was high, so Energy drops by 1.");
+      } else {
+        toast("New turn. Fresh hours, questionable priorities.");
+      }
+      travelLabel.textContent = `${state.hours}h left`;
+      travelLabel.classList.add("show");
+      render();
+    }
+
+    function resetDemo() {
+      Object.assign(state, structuredClone(initialState));
+      state.stats = structuredClone(initialState.stats);
+      drawer.classList.remove("open");
+      menuPop.classList.remove("open");
+      document.querySelectorAll(".hotspot").forEach((el) => el.classList.remove("active"));
+      setTokenPosition(43.5, 68);
+      avatarFlip.classList.remove("face-left");
+      avatarAnim.classList.remove("walking");
+      avatarAnim.classList.add("idle");
+      travelLabel.textContent = "Click a building";
+      travelLabel.classList.add("show");
+      render();
+      toast("Demo reset.");
+    }
+
+    document.getElementById("statsButton").addEventListener("click", () => {
+      renderModalStats();
+      document.getElementById("statsModal").classList.add("open");
+    });
+
+    document.getElementById("closeStatsButton").addEventListener("click", () => {
+      document.getElementById("statsModal").classList.remove("open");
+    });
+
+    document.getElementById("modalEndTurnButton").addEventListener("click", () => {
+      document.getElementById("statsModal").classList.remove("open");
+      endTurn();
+    });
+
+    document.getElementById("endTurnButton").addEventListener("click", endTurn);
+    document.getElementById("menuButton").addEventListener("click", () => menuPop.classList.toggle("open"));
+    document.getElementById("hideMenuButton").addEventListener("click", () => menuPop.classList.remove("open"));
+    document.getElementById("resetButton").addEventListener("click", resetDemo);
+
+    createHotspots();
+    setTokenPosition(43.5, 68);
+    avatarAnim.classList.add("idle");
+    render();
+    window.setTimeout(() => {
+      travelLabel.classList.add("show");
+      toast("Now using your real board art. Click buildings to move.");
+    }, 500);
+  </script>
+</body>
+</html>
