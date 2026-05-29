@@ -49,7 +49,7 @@
       position: relative;
       width: min(100vw - 20px, calc((100vh - 20px) * 1672 / 941));
       aspect-ratio: 1672 / 941;
-      background-image: url("assets/campaigner-board.png");
+      background-image: url("assets/campaigner-board.png?v=2");
       background-size: cover;
       background-position: center;
       border: 3px solid #050505;
@@ -131,23 +131,24 @@
 
     .avatar {
       position: absolute;
-      left: 43.5%;
-      top: 68%;
-      width: 7.8%;
-      aspect-ratio: 180 / 270;
-      transform: translate(-50%, -92%);
+      left: 44%;
+      top: 56%;
+      width: 8.6%;
+      aspect-ratio: 997 / 1592;
+      transform: translate(-50%, -90%);
       z-index: 10;
       pointer-events: none;
+      /* left/top are driven frame-by-frame by the path walker, so they are
+         intentionally NOT transitioned here (only cosmetic props are). */
       transition:
-        left .95s cubic-bezier(.22, .9, .24, 1),
-        top .95s cubic-bezier(.22, .9, .24, 1),
         width .25s ease,
         filter .25s ease;
-      filter: drop-shadow(0 2.2vw .15vw rgba(0, 0, 0, .42));
+      filter: drop-shadow(0 1.4vw .12vw rgba(0, 0, 0, .5));
+      will-change: left, top;
     }
 
     .avatar.moving {
-      filter: drop-shadow(0 2.6vw .15vw rgba(0, 0, 0, .46)) saturate(1.08);
+      filter: drop-shadow(0 1.0vw .12vw rgba(0, 0, 0, .55)) saturate(1.06);
     }
 
     .avatar img {
@@ -178,7 +179,7 @@
     }
 
     #avatarAnim.walking {
-      animation: walkCycle .44s ease-in-out infinite;
+      animation: walkCycle .42s ease-in-out infinite;
     }
 
     @keyframes idleFloat {
@@ -186,19 +187,20 @@
       50%       { transform: translateY(-0.35vw) rotate(0.6deg); }
     }
 
+    /* A gentle step-bounce + alternating lean reads as a walk/waddle. */
     @keyframes walkCycle {
-      0%   { transform: translateY(0)       rotate(0deg); }
-      25%  { transform: translateY(-0.55vw) rotate(-2.4deg); }
-      50%  { transform: translateY(0)       rotate(0deg); }
-      75%  { transform: translateY(-0.55vw) rotate(2.4deg); }
-      100% { transform: translateY(0)       rotate(0deg); }
+      0%   { transform: translateY(0)       rotate(-1.6deg); }
+      25%  { transform: translateY(-0.5vw)  rotate(0deg); }
+      50%  { transform: translateY(0)       rotate(1.6deg); }
+      75%  { transform: translateY(-0.5vw)  rotate(0deg); }
+      100% { transform: translateY(0)       rotate(-1.6deg); }
     }
 
     .route-dot {
       position: absolute;
-      left: 43.5%;
-      top: 68%;
-      width: 2.6%;
+      left: 44%;
+      top: 56%;
+      width: 2.2%;
       aspect-ratio: 1;
       transform: translate(-50%, -50%);
       border-radius: 50%;
@@ -206,7 +208,18 @@
       box-shadow: 0 0 20px rgba(255, 200, 61, .95);
       z-index: 9;
       pointer-events: none;
-      transition: left .95s cubic-bezier(.22, .9, .24, 1), top .95s cubic-bezier(.22, .9, .24, 1), opacity .2s ease;
+      opacity: 0;
+      transition: left .25s ease, top .25s ease, opacity .2s ease;
+    }
+
+    .route-dot.show {
+      opacity: .9;
+      animation: destPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes destPulse {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50%      { transform: translate(-50%, -50%) scale(1.35); }
     }
 
     .travel-label {
@@ -573,7 +586,7 @@
       <div class="avatar" id="avatar" aria-hidden="true">
         <div id="avatarFlip">
           <div id="avatarAnim">
-            <img src="assets/campaigner-token.png" alt="" />
+            <img id="avatarImg" src="assets/campaigner-token.png?v=2" alt="" />
           </div>
         </div>
       </div>
@@ -812,15 +825,150 @@
     const avatar = document.getElementById("avatar");
     const avatarFlip = document.getElementById("avatarFlip");
     const avatarAnim = document.getElementById("avatarAnim");
+    const avatarImg = document.getElementById("avatarImg");
+
+    // Optional arms-down walking sprite. Drop assets/campaigner-walk.png into
+    // the repo and it is used automatically while moving; until then the
+    // standing token is reused for both idle and walking (graceful fallback).
+    const IDLE_SPRITE = "assets/campaigner-token.png?v=2";
+    const WALK_SPRITE = "assets/campaigner-walk.png?v=2";
+    let walkSpriteReady = false;
+    (function preloadWalkSprite() {
+      const probe = new Image();
+      probe.onload = () => { walkSpriteReady = true; };
+      probe.onerror = () => { walkSpriteReady = false; };
+      probe.src = WALK_SPRITE;
+    })();
+    function setSprite(walking) {
+      const want = (walking && walkSpriteReady) ? WALK_SPRITE : IDLE_SPRITE;
+      if (!avatarImg.src.endsWith(want)) avatarImg.src = want;
+    }
     const routeDot = document.getElementById("routeDot");
     const travelLabel = document.getElementById("travelLabel");
     const drawer = document.getElementById("drawer");
     const actions = document.getElementById("actions");
     const menuPop = document.getElementById("menuPop");
-    let currentTokenPos = [43.5, 68];
+    const START_POS = [44, 56];
+    let currentTokenPos = START_POS.slice();
 
     function clamp(value) {
       return Math.max(0, Math.min(10, value));
+    }
+
+    // ---- Road network --------------------------------------------------
+    // Waypoint graph in board-percentage coords. Each building connects to a
+    // central roundabout (ring nodes rN..rNW) via a spoke road and to its
+    // neighbours via the perimeter road. Walking the shortest path through
+    // this graph keeps the token on real roads instead of cutting straight
+    // across buildings and the fountain.
+    const roadNodes = {
+      rN:  [44, 33], rNE: [51, 37], rE:  [53, 43], rSE: [52, 51],
+      rS:  [44, 55], rSW: [38, 51], rW:  [35, 43], rNW: [37, 36]
+    };
+    buildings.forEach((b) => { roadNodes[b.id] = [b.token[0], b.token[1]]; });
+
+    const roadEdges = [
+      // roundabout ring (around the fountain garden)
+      ["rN", "rNE"], ["rNE", "rE"], ["rE", "rSE"], ["rSE", "rS"],
+      ["rS", "rSW"], ["rSW", "rW"], ["rW", "rNW"], ["rNW", "rN"],
+      // spokes: roundabout -> adjacent buildings
+      ["rNW", "academy"], ["rW", "market"], ["rW", "temple"], ["rSW", "temple"],
+      ["rSW", "burger"], ["rS", "apartments"], ["rN", "club"], ["rNE", "mansion"],
+      ["rE", "bank"], ["rSE", "exchange"],
+      // perimeter road (outer ring, angular order)
+      ["academy", "club"], ["club", "mansion"], ["mansion", "mall"], ["mall", "pets"],
+      ["pets", "gym"], ["gym", "exchange"], ["exchange", "apartments"],
+      ["apartments", "burger"], ["burger", "temple"], ["temple", "market"],
+      ["market", "academy"],
+      // inner connectors
+      ["bank", "mansion"], ["bank", "exchange"], ["mall", "mansion"]
+    ];
+
+    // aspect-corrected length (board is 1672x941) so walk speed looks uniform
+    const AR_X = 1672 / 100, AR_Y = 941 / 100;
+    function segLen(a, b) {
+      const dx = (a[0] - b[0]) * AR_X, dy = (a[1] - b[1]) * AR_Y;
+      return Math.hypot(dx, dy);
+    }
+
+    const adj = {};
+    Object.keys(roadNodes).forEach((k) => { adj[k] = []; });
+    roadEdges.forEach(([a, b]) => {
+      const w = segLen(roadNodes[a], roadNodes[b]);
+      adj[a].push([b, w]); adj[b].push([a, w]);
+    });
+
+    function nearestNode(pos) {
+      let best = null, bd = Infinity;
+      for (const k in roadNodes) {
+        const d = segLen(pos, roadNodes[k]);
+        if (d < bd) { bd = d; best = k; }
+      }
+      return best;
+    }
+
+    function shortestPath(fromId, toId) {
+      const dist = {}, prev = {}, seen = {};
+      Object.keys(roadNodes).forEach((k) => { dist[k] = Infinity; });
+      dist[fromId] = 0;
+      while (true) {
+        let u = null, ud = Infinity;
+        for (const k in dist) if (!seen[k] && dist[k] < ud) { ud = dist[k]; u = k; }
+        if (u === null || u === toId) break;
+        seen[u] = true;
+        for (const [v, w] of adj[u]) {
+          if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; prev[v] = u; }
+        }
+      }
+      const path = []; let cur = toId;
+      while (cur !== undefined) { path.unshift(cur); if (cur === fromId) break; cur = prev[cur]; }
+      return path[0] === fromId ? path : [fromId, toId];
+    }
+
+    // polyline of [x,y] points the token walks: from its current spot, onto
+    // the road graph, to the destination building.
+    function buildRoute(destId) {
+      const startNode = (state.location && roadNodes[state.location])
+        ? state.location : nearestNode(currentTokenPos);
+      const pts = shortestPath(startNode, destId).map((n) => roadNodes[n].slice());
+      const first = pts[0];
+      if (Math.abs(first[0] - currentTokenPos[0]) + Math.abs(first[1] - currentTokenPos[1]) > 0.4) {
+        pts.unshift(currentTokenPos.slice());
+      }
+      return pts;
+    }
+
+    // ---- Path walker (constant-speed motion along the polyline) ---------
+    const WALK_SPEED = 560; // native px per second
+    let walkRAF = null;
+
+    function walkRoute(points, onArrive) {
+      const segs = [];
+      let total = 0;
+      for (let i = 1; i < points.length; i++) {
+        const L = segLen(points[i - 1], points[i]);
+        segs.push(L); total += L;
+      }
+      if (total < 0.001 || points.length < 2) { setTokenPosition(points[points.length - 1][0], points[points.length - 1][1]); if (onArrive) onArrive(); return; }
+      const duration = Math.max(450, (total / WALK_SPEED) * 1000);
+      const t0 = performance.now();
+
+      function frame(now) {
+        const p = Math.min(1, (now - t0) / duration);
+        const target = p * total;
+        let acc = 0, i = 0;
+        while (i < segs.length - 1 && acc + segs[i] < target) { acc += segs[i]; i++; }
+        const a = points[i], b = points[i + 1];
+        const segFrac = segs[i] ? Math.min(1, (target - acc) / segs[i]) : 1;
+        const x = a[0] + (b[0] - a[0]) * segFrac;
+        const y = a[1] + (b[1] - a[1]) * segFrac;
+        if (b[0] - a[0] < -0.05) avatarFlip.classList.add("face-left");
+        else if (b[0] - a[0] > 0.05) avatarFlip.classList.remove("face-left");
+        setTokenPosition(x, y);
+        if (p < 1) { walkRAF = requestAnimationFrame(frame); }
+        else { walkRAF = null; if (onArrive) onArrive(); }
+      }
+      walkRAF = requestAnimationFrame(frame);
     }
 
     function createHotspots() {
@@ -841,8 +989,6 @@
     function setTokenPosition(x, y) {
       avatar.style.left = `${x}%`;
       avatar.style.top = `${y}%`;
-      routeDot.style.left = `${x}%`;
-      routeDot.style.top = `${y}%`;
       travelLabel.style.left = `${x}%`;
       travelLabel.style.top = `${Math.max(9, y - 12)}%`;
       currentTokenPos = [x, y];
@@ -879,8 +1025,10 @@
 
     function travelTo(building) {
       if (avatar.classList.contains("moving")) return;
-      const current = buildings.find((b) => b.id === state.location);
-      const origin = current ? current.token : [43.5, 68];
+      if (state.location === building.id) { openDrawer(building); return; }
+
+      const route = buildRoute(building.id);
+      const origin = currentTokenPos;
       const distance = Math.abs(origin[0] - building.token[0]) + Math.abs(origin[1] - building.token[1]);
       const cost = Math.max(1, Math.ceil(distance / 18));
       if (state.hours < cost) {
@@ -888,34 +1036,36 @@
         return;
       }
 
-      if (building.token[0] < currentTokenPos[0]) {
-        avatarFlip.classList.add("face-left");
-      } else {
-        avatarFlip.classList.remove("face-left");
-      }
-
       state.hours -= cost;
       drawer.classList.remove("open");
       menuPop.classList.remove("open");
       document.querySelectorAll(".hotspot").forEach((el) => el.classList.remove("active"));
       document.querySelector(`[data-id="${building.id}"]`).classList.add("active");
+
+      // pulsing destination marker on the target building
+      routeDot.style.left = `${building.token[0]}%`;
+      routeDot.style.top = `${building.token[1]}%`;
+      routeDot.classList.add("show");
+
       travelLabel.textContent = `To ${building.name}: ${cost}h`;
       travelLabel.classList.add("show");
       avatar.classList.add("moving");
       avatarAnim.classList.remove("idle");
       avatarAnim.classList.add("walking");
-      setTokenPosition(building.token[0], building.token[1]);
+      setSprite(true);
       render();
 
-      window.setTimeout(() => {
+      walkRoute(route, () => {
         avatar.classList.remove("moving");
         avatarAnim.classList.remove("walking");
         avatarAnim.classList.add("idle");
+        setSprite(false);
+        routeDot.classList.remove("show");
         state.location = building.id;
         travelLabel.textContent = `${state.hours}h left`;
         openDrawer(building);
         toast(`Arrived at ${building.name}.`);
-      }, 980);
+      });
     }
 
     function openDrawer(building) {
@@ -988,15 +1138,19 @@
     }
 
     function resetDemo() {
+      if (walkRAF) { cancelAnimationFrame(walkRAF); walkRAF = null; }
       Object.assign(state, structuredClone(initialState));
       state.stats = structuredClone(initialState.stats);
       drawer.classList.remove("open");
       menuPop.classList.remove("open");
+      routeDot.classList.remove("show");
       document.querySelectorAll(".hotspot").forEach((el) => el.classList.remove("active"));
-      setTokenPosition(43.5, 68);
+      avatar.classList.remove("moving");
+      setTokenPosition(START_POS[0], START_POS[1]);
       avatarFlip.classList.remove("face-left");
       avatarAnim.classList.remove("walking");
       avatarAnim.classList.add("idle");
+      setSprite(false);
       travelLabel.textContent = "Click a building";
       travelLabel.classList.add("show");
       render();
@@ -1023,12 +1177,12 @@
     document.getElementById("resetButton").addEventListener("click", resetDemo);
 
     createHotspots();
-    setTokenPosition(43.5, 68);
+    setTokenPosition(START_POS[0], START_POS[1]);
     avatarAnim.classList.add("idle");
     render();
     window.setTimeout(() => {
       travelLabel.classList.add("show");
-      toast("Now using your real board art. Click buildings to move.");
+      toast("Click a building — your character walks the roads to get there.");
     }, 500);
   </script>
 </body>
