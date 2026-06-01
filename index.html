@@ -133,9 +133,11 @@
       position: absolute;
       left: 44%;
       top: 56%;
-      width: 8.6%;
-      aspect-ratio: 156 / 264;
-      transform: translate(-50%, -90%);
+      width: 6.5%;
+      aspect-ratio: 156 / 259;
+      /* anchor the element's BOTTOM (her feet) on the road point so she stands
+         on the ground instead of floating above it. */
+      transform: translate(-50%, -100%);
       z-index: 10;
       pointer-events: none;
       /* left/top are driven frame-by-frame by the path walker, so they are
@@ -226,10 +228,11 @@
 
     .travel-label {
       position: absolute;
-      left: 43.5%;
-      top: 56%;
+      /* pinned at top-centre of the board, no longer riding on the avatar's head */
+      left: 50%;
+      top: 4%;
       z-index: 12;
-      transform: translate(-50%, -100%) rotate(-2deg);
+      transform: translate(-50%, 0) rotate(-2deg);
       padding: .48vw .72vw;
       min-width: max-content;
       border: .18vw solid var(--stroke);
@@ -241,10 +244,7 @@
       box-shadow: .35vw .42vw 0 rgba(0, 0, 0, .35);
       opacity: 0;
       pointer-events: none;
-      transition:
-        left .95s cubic-bezier(.22, .9, .24, 1),
-        top .95s cubic-bezier(.22, .9, .24, 1),
-        opacity .16s ease;
+      transition: opacity .16s ease;
     }
 
     .travel-label.show { opacity: 1; }
@@ -991,8 +991,7 @@
     function setTokenPosition(x, y) {
       avatar.style.left = `${x}%`;
       avatar.style.top = `${y}%`;
-      travelLabel.style.left = `${x}%`;
-      travelLabel.style.top = `${Math.max(9, y - 12)}%`;
+      // travel label is now pinned at top-centre via CSS; do not move it onto the avatar.
       currentTokenPos = [x, y];
     }
 
