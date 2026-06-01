@@ -145,14 +145,30 @@
       transition:
         width .25s ease,
         filter .25s ease;
-      /* tight contact shadow right at her feet (was 1.4vw below, which read as
-         floating above the shadow). */
-      filter: drop-shadow(0 .12vw .3vw rgba(0, 0, 0, .5));
+      /* No drop-shadow: it shadows her whole silhouette and never sits under
+         the feet. Grounding is done with a flat oval contact shadow below. */
       will-change: left, top;
     }
 
+    /* Flat ground/contact shadow oval directly under her feet (the element's
+       bottom edge = her feet via translate -100%). Sits BEHIND the sprite. */
+    .avatar::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -0.4%;
+      width: 46%;
+      height: 7%;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse at center,
+        rgba(0, 0, 0, .42) 0%, rgba(0, 0, 0, .28) 45%, rgba(0, 0, 0, 0) 72%);
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: -1;
+    }
+
     .avatar.moving {
-      filter: drop-shadow(0 .12vw .3vw rgba(0, 0, 0, .55)) saturate(1.06);
+      filter: saturate(1.06);
     }
 
     .avatar img {
