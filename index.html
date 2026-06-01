@@ -881,9 +881,10 @@
       ["academy", "club"], ["club", "mansion"], ["mansion", "mall"], ["mall", "pets"],
       ["pets", "gym"], ["gym", "exchange"], ["exchange", "apartments"],
       ["apartments", "burger"], ["burger", "temple"], ["temple", "market"],
-      ["market", "academy"],
-      // inner connectors
-      ["bank", "mansion"], ["bank", "exchange"], ["mall", "mansion"]
+      ["market", "academy"]
+      // (removed the inner cross-connectors bank-mansion, bank-exchange,
+      //  mall-mansion: they cut straight across the fountain/grass. Routing now
+      //  follows the roundabout ring + spokes + perimeter, i.e. real roads.)
     ];
 
     // aspect-corrected length (board is 1672x941) so walk speed looks uniform
