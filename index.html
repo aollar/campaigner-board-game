@@ -134,7 +134,7 @@
       left: 44%;
       top: 56%;
       width: 8.6%;
-      aspect-ratio: 997 / 1592;
+      aspect-ratio: 156 / 264;
       transform: translate(-50%, -90%);
       z-index: 10;
       pointer-events: none;
@@ -174,12 +174,14 @@
       transform-origin: center bottom;
     }
 
+    /* The idle/walk sprites are real frame animations (animated PNG), so the
+       CSS bob/lean is disabled to avoid doubling up the motion. */
     #avatarAnim.idle {
-      animation: idleFloat 2.8s ease-in-out infinite;
+      animation: none;
     }
 
     #avatarAnim.walking {
-      animation: walkCycle .42s ease-in-out infinite;
+      animation: none;
     }
 
     @keyframes idleFloat {
@@ -586,7 +588,7 @@
       <div class="avatar" id="avatar" aria-hidden="true">
         <div id="avatarFlip">
           <div id="avatarAnim">
-            <img id="avatarImg" src="assets/campaigner-token.png?v=2" alt="" />
+            <img id="avatarImg" src="assets/campaigner-idle.png?v=3" alt="" />
           </div>
         </div>
       </div>
@@ -827,11 +829,11 @@
     const avatarAnim = document.getElementById("avatarAnim");
     const avatarImg = document.getElementById("avatarImg");
 
-    // Optional arms-down walking sprite. Drop assets/campaigner-walk.png into
-    // the repo and it is used automatically while moving; until then the
-    // standing token is reused for both idle and walking (graceful fallback).
-    const IDLE_SPRITE = "assets/campaigner-token.png?v=2";
-    const WALK_SPRITE = "assets/campaigner-walk.png?v=2";
+    // Animated sprites: campaigner-idle.png (standing breathing loop) and
+    // campaigner-walk.png (walk cycle), both animated PNG with transparency.
+    // setSprite() swaps between them; each plays its own frame loop.
+    const IDLE_SPRITE = "assets/campaigner-idle.png?v=3";
+    const WALK_SPRITE = "assets/campaigner-walk.png?v=3";
     let walkSpriteReady = false;
     (function preloadWalkSprite() {
       const probe = new Image();
