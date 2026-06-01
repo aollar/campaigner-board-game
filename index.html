@@ -133,7 +133,7 @@
       position: absolute;
       left: 44%;
       top: 56%;
-      width: 6.5%;
+      width: 5.5%;
       aspect-ratio: 156 / 259;
       /* anchor the element's BOTTOM (her feet) on the road point so she stands
          on the ground instead of floating above it. */
@@ -145,12 +145,14 @@
       transition:
         width .25s ease,
         filter .25s ease;
-      filter: drop-shadow(0 1.4vw .12vw rgba(0, 0, 0, .5));
+      /* tight contact shadow right at her feet (was 1.4vw below, which read as
+         floating above the shadow). */
+      filter: drop-shadow(0 .12vw .3vw rgba(0, 0, 0, .5));
       will-change: left, top;
     }
 
     .avatar.moving {
-      filter: drop-shadow(0 1.0vw .12vw rgba(0, 0, 0, .55)) saturate(1.06);
+      filter: drop-shadow(0 .12vw .3vw rgba(0, 0, 0, .55)) saturate(1.06);
     }
 
     .avatar img {
