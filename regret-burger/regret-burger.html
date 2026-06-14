@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Regret Burger — Order Counter</title>
+<style>
+  /* ============================================================
+     REGRET BURGER — interactive + alive scene  (v1)
+     Design space: 1672 x 941 (all coords below are in that space)
+     Everything scales with the .scene box via percentage positioning.
+     ============================================================ */
+  :root{
+    --design-w: 1672;
+    --design-h: 941;
+    --ease: cubic-bezier(.2,.8,.25,1);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; background:#15110d; }
+  body{
+    display:flex; align-items:center; justify-content:center;
+    font-family:"Segoe UI", system-ui, sans-serif; overflow:hidden;
+  }
+
+  .stage{ width:100vw; height:100vh; display:flex; align-items:center; justify-content:center; }
+
+  /* aspect-locked scene; children use % so they scale together */
+  .scene{
+    position:relative;
+    width:min(100vw, calc(100vh * (var(--design-w) / var(--design-h))));
+    aspect-ratio: var(--design-w) / var(--design-h);
+    border-radius:10px; overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,.6);
+    user-select:none;
+  }
+  .layer{ position:absolute; inset:0; width:100%; height:100%; }
+  .bg{ object-fit:cover; }
+  .panel{ pointer-events:none; z-index:40; transform: translateX(1.55%); }  /* nudged right so the pickles peek out */
+
+  /* ---- positioned scene elements (mascots, Mona, cards) ---- */
+  .el{ position:absolute; display:block; }
+  img.el{ height:auto; }
+
+  /* (pointer parallax removed per feedback — mascots hold their positions) */
+
+  /* ---------- AMBIENT "ALIVE" IDLE ANIMATIONS ---------- */
+  @keyframes breathe   { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-0.6%) scale(1.006)} }
+  @keyframes nervous   { 0%,100%{transform:translate(0,0) rotate(0)} 25%{transform:translate(-1px,1px) rotate(-.4deg)} 75%{transform:translate(1px,-1px) rotate(.4deg)} }
+  @keyframes sway      { 0%,100%{transform:rotate(-1.2deg) translateY(0)} 50%{transform:rotate(1.2deg) translateY(-1%)} }
+  @keyframes vibrate   { 0%,100%{transform:translate(0,0)} 20%{transform:translate(-1.5px,.5px)} 40%{transform:translate(1.5px,-.5px)} 60%{transform:translate(-1px,1px)} 80%{transform:translate(1px,0)} }
+  @keyframes sadsink   { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(2%) rotate(1deg)} }
+  @keyframes cheer     { 0%,100%{transform:translateY(0) scale(1)} 50%{transform:translateY(-2.5%) scale(1.015)} }
+
+  /* wrap mascot idle on an INNER element so parallax (outer) + idle (inner) compose */
+  .idle{ display:block; transform-origin:center bottom; }
+  .idle.breathe { animation:breathe 4.6s var(--ease) infinite; }
+  .idle.nervous { animation:nervous 1.5s steps(1) infinite; }
+  .idle.sway    { animation:sway 5s ease-in-out infinite; }
+  .idle.vibrate { animation:vibrate .35s linear infinite; }
+  .idle.sadsink { animation:sadsink 6s ease-in-out infinite; }
+  .idle.cheer   { animation:cheer 2.4s ease-in-out infinite; }
+
+  /* ---------- CLICKABLE MENU CARDS (premium interaction) ---------- */
+  .card{
+    position:absolute; cursor:pointer; z-index:45;
+    transform-origin:center bottom; will-change:transform, filter;
+    transition: transform .18s var(--ease), filter .18s ease-out;
+    filter: drop-shadow(0 3px 4px rgba(0,0,0,.28));
+  }
+  .card:hover{
+    transform: translateY(-6px) scale(1.05);
+    filter: drop-shadow(0 10px 12px rgba(0,0,0,.38)) brightness(1.05);
+    z-index:55;
+  }
+  .card.pressing{ transform: translateY(-1px) scale(.965); transition-duration:.08s; }
+  .card.selected{
+    transform: translateY(-8px) scale(1.085);
+    filter: drop-shadow(0 0 7px rgba(255,196,77,.95)) drop-shadow(0 11px 15px rgba(0,0,0,.42));
+    z-index:60;
+    animation: selPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes selPulse{
+    0%,100%{ filter: drop-shadow(0 0 6px rgba(255,196,77,.85)) drop-shadow(0 11px 15px rgba(0,0,0,.42)); }
+    50%    { filter: drop-shadow(0 0 12px rgba(255,214,120,1)) drop-shadow(0 11px 15px rgba(0,0,0,.42)); }
+  }
+
+  /* ---------- ambient scene FX ---------- */
+  .steam{ position:absolute; z-index:35; width:2.2%; aspect-ratio:1; border-radius:50%;
+          background:radial-gradient(circle, rgba(255,255,255,.5), rgba(255,255,255,0) 70%);
+          filter:blur(3px); opacity:0; pointer-events:none; }
+  @keyframes rise{ 0%{ transform:translateY(0) scale(.6); opacity:0 }
+                   25%{ opacity:.5 } 100%{ transform:translateY(-120px) scale(1.4); opacity:0 } }
+  .flicker{ position:absolute; inset:0; z-index:38; pointer-events:none; mix-blend-mode:screen;
+            background:radial-gradient(120% 60% at 50% 0%, rgba(255,190,120,.10), rgba(255,190,120,0) 60%);
+            animation:flick 5.5s ease-in-out infinite; }
+  @keyframes flick{ 0%,100%{opacity:.5} 45%{opacity:.85} 55%{opacity:.6} 70%{opacity:.95} }
+
+  /* ---------- selected-item readout (console mirror) ---------- */
+  .badge{
+    position:absolute; left:1.2%; bottom:2.2%; z-index:70;
+    background:rgba(20,14,9,.82); color:#ffd76e; font-weight:700;
+    padding:.5em .8em; border-radius:8px; font-size:clamp(11px,1.3vw,18px);
+    border:1px solid rgba(255,196,77,.5); letter-spacing:.2px;
+    transition:opacity .2s ease; opacity:0;
+  }
+  .badge.show{ opacity:1; }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="scene" id="scene">
+      <img class="layer bg" src="assets/background.png" alt="Regret Burger interior" />
+      <!-- mascots + Mona injected here -->
+      <img class="layer panel" src="assets/menu-panel.png" alt="Order review panel" />
+      <!-- menu cards injected here (sit above the panel frame) -->
+      <div class="flicker"></div>
+      <div class="badge" id="badge"></div>
+    </div>
+  </div>
+
+<script>
+/* ============================================================
+   CONFIG — edit positions / filenames here (design space 1672x941)
+   ============================================================ */
+const DW = 1672, DH = 941;
+
+/* Scene characters. x,y = top-left, w = width (height keeps image aspect).
+   anim = ambient idle class. depth = parallax strength (px per unit cursor). */
+const MASCOTS = [
+  { id:'mona',          img:'mona.png',          x:492, y:20,  w:590, anim:'breathe' },
+  { id:'mascot_burger', img:'mascot_burger.png', x:28,  y:387, w:270, anim:'nervous' },
+  { id:'mascot_fries',  img:'mascot_fries.png',  x:285, y:436, w:199, anim:'sway'    },
+  { id:'mascot_shake',  img:'mascot_shake.png',  x:457, y:412, w:183, anim:'sadsink' },
+  { id:'sign_nuggets',  img:'sign_nuggets.png',  x:716, y:530, w:287, anim:'cheer'   },
+  { id:'mascot_pickles',img:'mascot_pickles.png',x:969, y:479, w:167, anim:'vibrate' },
+];
+
+/* Menu cards — clickable "food items" (ASAD spec). Placed into the panel's 2x3 slot grid.
+   TUNE these grid numbers live in the browser if cards don't sit perfectly in the slots. */
+const GRID = { x0:1176, y0:160, slotW:138, colStride:160, rowStride:200 };
+const ITEMS = [
+  { id:'regret_classic', name:'Regret Burger Classic', img:'card_regret_classic.png',  col:0, row:0 },
+  { id:'double_deluxe',  name:'Double Regret Deluxe',  img:'card_double_deluxe.png',   col:1, row:0 },
+  { id:'no_refund_fries',name:'No Refund Fries',       img:'card_no_refund_fries.png', col:2, row:0 },
+  { id:'shame_shake',    name:'Shame Shake',           img:'card_shame_shake.png',     col:0, row:1 },
+  { id:'doomscroll_fries',name:'Doomscroll Fries',     img:'card_doomscroll_fries.png',col:1, row:1 },
+  { id:'2am_combo',      name:'The 2 AM Combo',        img:'card_2am_combo.png',       col:2, row:1 },
+];
+
+const CUT = 'assets/cutouts/';
+const scene = document.getElementById('scene');
+const badge = document.getElementById('badge');
+const pct  = v => (v / DW * 100) + '%';
+const pctY = v => (v / DH * 100) + '%';
+
+/* ---- build mascots (outer = parallax wrapper, inner = idle animation) ---- */
+const panelEl = scene.querySelector('.panel');
+for (const m of MASCOTS){
+  const wrap = document.createElement('div');
+  wrap.className = 'el mascot';
+  wrap.style.left = pct(m.x); wrap.style.top = pctY(m.y); wrap.style.width = pct(m.w);
+  const img = document.createElement('img');
+  img.className = 'idle ' + m.anim;
+  img.src = CUT + m.img; img.style.width = '100%'; img.draggable = false;
+  wrap.appendChild(img);
+  scene.insertBefore(wrap, panelEl);          // mascots render beneath the panel frame
+}
+
+/* ---- build clickable cards into the slot grid (above the panel) ---- */
+const state = { selected:null };
+function selectItem(item, el){
+  if (state.selectedEl) state.selectedEl.classList.remove('selected');
+  el.classList.add('selected');
+  state.selected = item.id; state.selectedEl = el;
+  badge.textContent = '✓ ' + item.name;
+  badge.classList.add('show');
+  console.log('[Regret Burger] selected:', item.id, '—', item.name);
+}
+for (const it of ITEMS){
+  const x = GRID.x0 + it.col * GRID.colStride;
+  const y = GRID.y0 + it.row * GRID.rowStride;
+  const card = document.createElement('img');
+  card.className = 'card';
+  card.src = CUT + it.img; card.draggable = false;
+  card.style.left = pct(x); card.style.top = pctY(y); card.style.width = pct(GRID.slotW);
+  card.dataset.id = it.id;
+  card.addEventListener('pointerdown', () => card.classList.add('pressing'));
+  card.addEventListener('pointerleave', () => card.classList.remove('pressing'));
+  card.addEventListener('pointerup', () => { card.classList.remove('pressing'); selectItem(it, card); });
+  scene.appendChild(card);
+}
+
+/* ---- ambient steam puffs rising from behind the counter ---- */
+for (let i=0;i<5;i++){
+  const s = document.createElement('div');
+  s.className = 'steam';
+  s.style.left = (28 + Math.random()*22) + '%';
+  s.style.top  = (52 + Math.random()*6) + '%';
+  s.style.animation = `rise ${4+Math.random()*2.5}s ease-in ${Math.random()*4}s infinite`;
+  scene.insertBefore(s, panelEl);
+}
+</script>
+</body>
+</html>
